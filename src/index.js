@@ -85,7 +85,7 @@ const earthMaterial = new THREE.MeshPhongMaterial({
   specularIntensity: 0.5,
   shininess: 200,
   emissiveMap: earthNight,
-  emissive: new THREE.Color(0x333355),
+  emissive: new THREE.Color(0x444433),
   emissiveIntensity: 1,
 });
 
