@@ -1,26 +1,27 @@
-import * as THREE from "three";
+import * as THREE from 'three';
 // We need to use a special loader to load TIFF files on browser
-import { TIFFLoader } from "three/examples/jsm/loaders/TIFFLoader";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { TIFFLoader } from 'three/examples/jsm/loaders/TIFFLoader';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 // Adding local reference to resources
 // Earth Textures
-import EarthDay from "./resources/EarthDay.jpg";
-import EarthNight from "./resources/EarthNight.jpg";
-import EarthBump from "./resources/EarthBumpMap.jpg";
-import EarthSpecular from "./resources/EarthSpecMap.jpg";
-import EarthClouds from "./resources/Clouds.jpg";
+import EarthDay from './resources/EarthDay.jpg';
+import EarthNight from './resources/EarthNight.jpg';
+import EarthBump from './resources/EarthBumpMap.jpg';
+import EarthSpecular from './resources/EarthSpecMap.jpg';
+import EarthClouds from './resources/Clouds.jpg';
 
 // Moon Textures
-import MoonMap from "./resources/MoonMap.tif";
-import MoonBump from "./resources/MoonBumpMap.jpg";
+import MoonMap from './resources/MoonMap.tif';
+import MoonBump from './resources/MoonBumpMap.jpg';
+import { degToRad } from 'three/src/math/MathUtils.js';
 
 const onResize = () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 };
-window.addEventListener("resize", onResize);
+window.addEventListener('resize', onResize);
 // Scene setup
 const scene = new THREE.Scene();
 
@@ -29,7 +30,7 @@ const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
   0.1,
-  1000,
+  1000
 );
 
 camera.position.z = 5;
@@ -50,15 +51,29 @@ const controls = new OrbitControls(camera, renderer.domElement);
 const tLoader = new TIFFLoader();
 const loader = new THREE.TextureLoader();
 
+// This function allows us to calculate where the sun would be
+// reletive to the day i.e. number of full rotations.
+const clacSunAngle = () => {
+  // Check that sun is declared, defined and non null
+  if (!sun || sun === null) return;
+  // calculate the days based on the earth models rotatations
+  // or use 0 if earth is undefined right now
+  const days = earth ? (earth.rotation.y / (2 * Math.PI)) % 365.25 : 0;
+  // The angle varies from 23.5 to -23.5, we use a cos function
+  // scaled by the absolute angle possible
+  const angle = 23.5 * Math.cos((2 * Math.PI * days) / 365.25 + Math.PI);
+  // lastly set the sun using polar coordinates and the angle calculated above
+  sun.position.set(10 * Math.cos(angle), 10 * Math.sin(angle), 10);
+};
 // Light setup
 const sun = new THREE.DirectionalLight(0xffffff, 1);
 // we place the light far away to emulate the sun
-sun.position.set(300, 0, -300);
+clacSunAngle();
 sun.castShadow = true;
 scene.add(sun);
 
 // Adding ambient light
-const ambientLight = new THREE.AmbientLight(0x555555, 0.01);
+const ambientLight = new THREE.AmbientLight(0x555555, 0.05);
 scene.add(ambientLight);
 
 // Earth Creation
@@ -79,14 +94,14 @@ const earthNight = loader.load(EarthNight);
 const earthMaterial = new THREE.MeshPhongMaterial({
   map: earthTexture,
   bumpMap: earthBump,
-  bumpScale: 0.05,
+  bumpScale: 0.1,
   specularMap: earthSpecular,
   specular: new THREE.Color(0x262626),
   specularIntensity: 0.5,
   shininess: 200,
   emissiveMap: earthNight,
-  emissive: new THREE.Color(0x444433),
-  emissiveIntensity: 1,
+  emissive: new THREE.Color(0xffffff),
+  emissiveIntensity: 0.1,
 });
 
 // Tying everything together we make the mesh
@@ -94,14 +109,12 @@ const earth = new THREE.Mesh(earthGeometry, earthMaterial);
 // We enable shadows
 earth.castShadow = true;
 earth.receiveShadow = true;
-// For added realism we include the Earth's offset axis
-earth.rotateZ((23.5 / 180) * Math.PI);
 // lastly we add the mesh to the scene
 scene.add(earth);
 
 // Clouds
 // First we create the geometry, slightly larger than the earth
-const cloudsGeometry = new THREE.SphereGeometry(1.007, 300, 300);
+const cloudsGeometry = new THREE.SphereGeometry(1.0009, 300, 300);
 // Next we load the texture, we use it as an alpha map so the earth is still visible underneath
 const cloudAlpha = loader.load(EarthClouds);
 // We then create the material
@@ -135,6 +148,7 @@ scene.add(moon);
 
 // Helper function to rotate the moon around the earth
 // Takes an angle (theta) in radians and a vector (axis)
+// Theta effectively decides how far the moon rotates every frame
 const orbit = (theta, axis) => {
   // We apply the angle to the position of the moon
   moon.position.applyAxisAngle(axis, theta);
@@ -142,14 +156,26 @@ const orbit = (theta, axis) => {
   moon.rotateOnAxis(axis, theta);
 };
 
+const sunDelay = 1;
+let runner = 0;
 function animate() {
   requestAnimationFrame(animate);
   // the earth rotates slowly along it's own axis
   earth.rotation.y += 0.001;
   // the clouds rotate slightly faster to give the illusion of sliding over the earth
-  clouds.rotation.y += 0.0015;
+  clouds.rotation.y += 0.002;
   // the moon rotates on it's own axis as well
   moon.rotation.y += 0.001;
+
+  // we only update the sun every 60 frames
+  // The effect is very small at slow rotations
+  // You can change the earth rotation above and
+  // experiment with the delay to see how the earth
+  // looks in different seasons
+  if (runner >= sunDelay) {
+    clacSunAngle();
+    runner = 0;
+  } else runner++;
 
   // animate the moons orbit, we rotate by 0.005 radians per frame
   orbit(0.005, new THREE.Vector3(0, 1, 0));
